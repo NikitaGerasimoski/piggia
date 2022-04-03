@@ -54,6 +54,23 @@ def index():
 def smoothie():
     return render_template('smoothie_test.html')
 
+@app.route('/changeTemp', methods=['POST'])
+def changeTemp():
+    with open(CONFIG_FILE) as f:
+        config = yaml.safe_load(f)
+    target_temperature = request.json['target_temperature']
+    config["set_point"] = target_temperature
+    with open(CONFIG_FILE, "w") as f:
+        yaml.dump(config,f,default_flow_style=False)
+    return jsonify({'status': 'success'})
+
+@app.route('/targetTemp', methods=['GET'])
+def targetTemp():
+    with open(CONFIG_FILE) as f:
+        config = yaml.safe_load(f)
+    target_temperature = config["set_point"]
+    return jsonify({'targetTemp': target_temperature})     
+
 @app.route('/status')
 def status():
     config = yaml.safe_load(open(CONFIG_FILE, 'r'))
@@ -132,5 +149,8 @@ def temps_png():
 
     return Response(img.getvalue(), mimetype='image/png')
 
-if __name__ == '__main__':
+def main():
     app.run(debug=True, host='0.0.0.0')
+    
+if __name__ == '__main__':
+    main()

@@ -6,6 +6,12 @@ import subprocess
 import time
 import sqlite3
 import yaml
+import board
+import adafruit_max31865
+import digitalio
+
+
+
 
 class NoThermometerError(Exception):
     '''
@@ -19,8 +25,10 @@ class Thermometer:
     """
     Represents a DS18B20 thermometer.
     """
+    spi = board.SPI()
+    cs = digitalio.DigitalInOut(board.D5)
+    sensor = adafruit_max31865.MAX31865(spi, cs, wires=3)
 
-    BASE_DIR = '/sys/bus/w1/devices/'
     CREATE_TEMPERATURE_TABLE = """
         CREATE TABLE IF NOT EXISTS temperature (
             timestamp DATETIME,
@@ -38,11 +46,6 @@ class Thermometer:
         END
     """
 
-    @classmethod
-    def get_thermometer_ids(cls):
-        ids = filter(lambda x: x.startswith('28-'), os.listdir(cls.BASE_DIR))
-        return list(map(lambda x: x.lstrip('28-'), ids))
-
     def __init__(self, therm_id=None):
         """
         Set up a thermometer.
@@ -52,20 +55,8 @@ class Thermometer:
           prefix. If none is specified, choose the
           first thermometer in lexographical order.
         """
-        subprocess.run(['modprobe', 'w1-gpio'], check=True)
-        subprocess.run(['modprobe', 'w1-therm'], check=True)
 
-        if therm_id is None:
-            therm_ids = Thermometer.get_thermometer_ids()
-            if len(therm_ids) == 0:
-                raise NoThermometerError()
-            else:
-                self.therm_id = therm_ids[0]
-        else:
-            self.therm_id = therm_id
-
-        self.device_file = '{}/28-{}/w1_slave'.format(
-                self.BASE_DIR, self.therm_id)
+        
 
     def get_temperature(self):
         """
@@ -74,16 +65,10 @@ class Thermometer:
         thermometer is not found, raises a
         NoThermometerError.
         """
-        try:
-            with open(self.device_file, 'r') as f:
-                lines = f.readlines()
-        except FileNotFoundError:
-            raise NoThermometerError()
-
-        if lines[0].strip().split()[-1] != 'YES':
+        current = self.sensor.temperature
+        if (current < 0):
             return None
-
-        return int(lines[1].strip().split('=')[1])/(10**3)
+        return current
 
     def log_to_sqlite_db(self, db_file, time_gap=1, max_entries=10**6):
         """
@@ -110,6 +95,7 @@ class Thermometer:
                         "datetime('now'), {})".format(self.get_temperature()))
                 conn.commit()
                 time.sleep(time_gap)
+                print("Temperature: {0:0.3f}C".format(self.get_temperature()))
             except KeyboardInterrupt:
                 conn.commit()
                 conn.close()

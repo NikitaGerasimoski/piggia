@@ -96,6 +96,11 @@ def pid(relay_pin, thermometer, set_point, K_p, K_i, K_d, db_connection,
     previous_error = 0
     previous_time = time.time()
     while True:
+        config = yaml.safe_load(open(sys.argv[1], 'r'))
+        
+        if (set_point != config['set_point']):
+            set_point = config['set_point']
+        
         current_temperature = thermometer.get_temperature()
         current_time = time.time()
 
@@ -117,6 +122,7 @@ def pid(relay_pin, thermometer, set_point, K_p, K_i, K_d, db_connection,
         # confine duty cycle in range [0,100]
         new_duty_cycle = max(0, min(new_duty_cycle, 100))
         pwm.ChangeDutyCycle(new_duty_cycle)
+        
 
         # log the temperature, P/I/D terms, and output
         db_cursor.execute("INSERT INTO temperature values(datetime('now'),"
@@ -129,8 +135,8 @@ def pid(relay_pin, thermometer, set_point, K_p, K_i, K_d, db_connection,
         previous_error = error
         previous_time = current_time
 
-        if seven_segment is not None:
-            seven_segment.send_float(current_temperature)
+#         if seven_segment is not None:
+#             seven_segment.send_float(current_temperature)
 
         time.sleep(delay_time)
 
